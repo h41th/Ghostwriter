@@ -109,9 +109,6 @@ services:
       - ./ssl:/ssl
     labels:
       name: ghostwriter_nginx
-    ports:
-      - "0.0.0.0:80:80"
-      - "0.0.0.0:443:443"
     environment:
       - NO_PROXY=django,graphql_engine
     healthcheck:
