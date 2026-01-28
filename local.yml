@@ -4,6 +4,12 @@ volumes:
   local_data: {}
   local_node_modules: {}
 
+networks:
+  internal: {}
+  coolify:
+    external: true
+    name: coolify
+
 services:
   django: &django
     build:
@@ -66,6 +72,8 @@ services:
       retries: ${HEALTHCHECK_RETRIES}
       start_period: ${HEALTHCHECK_START}
     command: /start
+    networks:
+      - internal
 
   postgres:
     build:
@@ -90,21 +98,8 @@ services:
       timeout: ${HEALTHCHECK_TIMEOUT}
       retries: ${HEALTHCHECK_RETRIES}
       start_period: ${HEALTHCHECK_START}
-
-  nginx:
-    build:
-      context: .
-      dockerfile: ./compose/production/nginx/Dockerfile
-    image: ghostwriter_local_nginx
-    depends_on:
-      # Nginx needs the hosts to be resolvable so that the `upstream` directives will work
-      - django
-      - graphql_engine
-      - collab-server
-    labels:
-      name: ghostwriter_nginx
-    environment:
-      - NO_PROXY=django,graphql_engine
+    networks:
+      - internal
 
   redis:
     build:
@@ -119,6 +114,8 @@ services:
       timeout: ${HEALTHCHECK_TIMEOUT}
       retries: ${HEALTHCHECK_RETRIES}
       start_period: ${HEALTHCHECK_START}
+    networks:
+      - internal
 
   queue:
     <<: *django
@@ -131,6 +128,8 @@ services:
     labels:
       name: ghostwriter_queue
     command: /start-queue
+    networks:
+      - internal
 
   frontend:
     build:
@@ -147,6 +146,8 @@ services:
     environment:
       - HASURA_GRAPHQL_ADMIN_SECRET=${HASURA_GRAPHQL_ADMIN_SECRET}
       - HASURA_GRAPHQL_SERVER_HOSTNAME=${HASURA_GRAPHQL_SERVER_HOSTNAME}
+    networks:
+      - internal
 
   collab-server:
     build:
@@ -167,6 +168,8 @@ services:
       - HASURA_ACTION_SECRET=${HASURA_GRAPHQL_ACTION_SECRET}
       - HASURA_GRAPHQL_ADMIN_SECRET=${HASURA_GRAPHQL_ADMIN_SECRET}
       - HASURA_GRAPHQL_SERVER_HOSTNAME=${HASURA_GRAPHQL_SERVER_HOSTNAME}
+    networks:
+      - internal
 
   graphql_engine:
     build:
@@ -209,3 +212,27 @@ services:
       timeout: ${HEALTHCHECK_TIMEOUT}
       retries: ${HEALTHCHECK_RETRIES}
       start_period: ${HEALTHCHECK_START}
+    networks:
+      - internal
+
+  nginx:
+    build:
+      context: .
+      dockerfile: ./compose/production/nginx/Dockerfile
+    image: ghostwriter_local_nginx
+    depends_on:
+      django:
+        condition: service_healthy
+      graphql_engine:
+        condition: service_healthy
+      collab-server:
+        condition: service_started
+    labels:
+      name: ghostwriter_nginx
+    environment:
+      - NO_PROXY=django,graphql_engine
+    expose:
+      - "80"
+    networks:
+      - internal
+      - coolify
